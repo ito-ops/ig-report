@@ -134,6 +134,89 @@ function wordDiff(top: Post[], bottom: Post[]) {
   return out.slice(0, 10);
 }
 
+function generateTips(p: Enriched, ctx: { reachMed: number; watchMed: number }): Array<{ icon: string; title: string; desc: string }> {
+  const tips: Array<{ icon: string; title: string; desc: string }> = [];
+  const benchEng = benchmarkBadge(p.engagement_rate, BENCHMARK.engagement_rate);
+  const benchSave = benchmarkBadge(p.save_pct, BENCHMARK.save_pct);
+  const benchShare = benchmarkBadge(p.share_pct, BENCHMARK.share_pct);
+  const benchWatch = benchmarkBadge(p.watch_s, BENCHMARK.watch_s);
+  const benchReplay = benchmarkBadge(p.replay_rate, BENCHMARK.replay_rate);
+  const reach = safeNum(p.insights.reach);
+
+  if (benchWatch.score >= 3 && benchShare.score <= 1) {
+    tips.push({
+      icon: '🎯',
+      title: 'フックは効いている、次は「拡散」の仕掛けを',
+      desc: '視聴秒は業界Good以上だが、シェア率が伸びていない。動画終盤に「友達にも教えて」「保存して見返してね」など明示的なCTAを置くと拡散・保存が伸びる。',
+    });
+  }
+  if (benchWatch.score <= 1 && reach >= ctx.reachMed) {
+    tips.push({
+      icon: '⏱',
+      title: '最初の3秒で離脱されている可能性大',
+      desc: 'リーチは出ているが視聴秒が短い＝アルゴリズムは押してくれたが視聴者が離脱。最初の1秒で結論/驚き/疑問を提示、テキスト被せを大きく、テンポを2倍速にするなどの対策を。',
+    });
+  }
+  if (benchSave.score >= 3) {
+    tips.push({
+      icon: '💾',
+      title: '保存率が高い ＝ アルゴリズム評価が上がる強シグナル',
+      desc: 'IGアルゴリズムは「保存」を最重要シグナルとして評価。同じテーマでシリーズ化・続編・まとめバージョンを作るとフィード/発見タブで伸びやすい。',
+    });
+  }
+  if (benchShare.score >= 3) {
+    tips.push({
+      icon: '📣',
+      title: 'シェアされやすい構成 = フォロワー外リーチが伸びる',
+      desc: '共感・気付き・笑いのいずれかのトリガーが効いている。同じトーンや切り口の投稿を続けると、シェア経由のフォロワー獲得が期待できる。',
+    });
+  }
+  if (benchReplay.score >= 3) {
+    tips.push({
+      icon: '🔁',
+      title: 'リプレイされる動画 = 情報密度が高い',
+      desc: '1人が複数回再生している。情報量が多い／音楽が癖になる／オチで遡って見たくなる、のいずれか。同じテンポ・密度を次回も保つ。',
+    });
+  }
+  if (p.hashtag_count === 0 && reach < ctx.reachMed) {
+    tips.push({
+      icon: '#️⃣',
+      title: 'ハッシュタグでディスカバリーリーチを足す',
+      desc: 'ハッシュタグ0個でリーチが伸び悩み。3〜5個の関連タグ（規模感ミックス：10万投稿/100万投稿/1000万投稿）を足すと発見タブからの流入が増える。',
+    });
+  }
+  if (p.caption_len < 30 && benchEng.score <= 1) {
+    tips.push({
+      icon: '📝',
+      title: 'キャプションを充実させてコメントを誘発',
+      desc: 'キャプションが短くエンゲージも低め。質問形式（「あなたはどう思う？」）や文脈情報を加えるとコメント率が上がり、エンゲージメント率全体が引き上がる。',
+    });
+  }
+  if (benchSave.score >= 3 && reach < ctx.reachMed) {
+    tips.push({
+      icon: '🌱',
+      title: '保存率は高いが届いていない＝磨けば光る投稿',
+      desc: '質は高いが拡散が足りていない。最初の3秒のサムネ＆フックを別パターンで再撮影し、同じ内容を再投稿（リミックス）すると伸びる可能性。',
+    });
+  }
+  if (tips.length === 0) {
+    if (benchEng.score >= 3 && benchWatch.score >= 3) {
+      tips.push({
+        icon: '🏆',
+        title: '優秀。このパターンを横展開すべし',
+        desc: '視聴・エンゲージ両方が業界Good以上。テーマ・尺・サムネ系統・キャプションの型を「勝ちパターン」として保存し、次回以降の制作テンプレートに。',
+      });
+    } else {
+      tips.push({
+        icon: '🔄',
+        title: '平均的なパフォーマンス → 1指標を尖らせる',
+        desc: '突き抜けるには「保存される情報量」「シェアされる共感」「リプレイされるテンポ」のいずれか1つを意識的に強化する。',
+      });
+    }
+  }
+  return tips.slice(0, 3);
+}
+
 function diagnose(p: Enriched, ctx: any): { label: string; cls: string; reason: string } {
   const isTopReach = ctx.topReachIds.has(p.id);
   const isTopWatch = ctx.topWatchIds.has(p.id);
@@ -310,6 +393,26 @@ const ICON_PATTERN = `
   <circle cx="44" cy="44" r="2.5" fill="#fff"/>
   <circle cx="54" cy="44" r="2.5" fill="#fff"/>
   <rect x="40" y="50" width="20" height="3" rx="1" fill="#fff"/>
+</svg>`;
+
+const ICON_WEEKLY = `
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="wk-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#833AB4"/><stop offset="100%" stop-color="#E1306C"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="16" width="56" height="50" rx="6" fill="#fff" stroke="url(#wk-grad)" stroke-width="3"/>
+  <rect x="12" y="16" width="56" height="14" rx="6" fill="url(#wk-grad)"/>
+  <line x1="24" y1="10" x2="24" y2="22" stroke="#262626" stroke-width="3" stroke-linecap="round"/>
+  <line x1="56" y1="10" x2="56" y2="22" stroke="#262626" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="24" cy="42" r="3" fill="#FCAF45"/>
+  <circle cx="40" cy="42" r="3" fill="#F77737"/>
+  <circle cx="56" cy="42" r="3" fill="#E1306C"/>
+  <circle cx="24" cy="54" r="3" fill="#C13584"/>
+  <circle cx="40" cy="54" r="4" fill="url(#wk-grad)"/>
+  <path d="M37 54 l2.5 2.5 l4 -4" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <circle cx="56" cy="54" r="3" fill="#833AB4"/>
 </svg>`;
 
 const ICON_RANKING = `
@@ -505,11 +608,25 @@ async function main() {
   }
   if (!fixThese.length) fixThese.push('要改善カテゴリの該当投稿はありません');
 
+  // 直近7日の投稿（時系列順、新しい順）
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weeklyPosts = enriched
+    .filter((p) => p.timestamp && new Date(p.timestamp).getTime() >= sevenDaysAgo)
+    .slice()
+    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+
+  // 各投稿に改善提案を付与
+  const weeklyWithTips = weeklyPosts.map((p) => ({
+    post: p,
+    tips: generateTips(p, { reachMed, watchMed }),
+  }));
+
   const html = renderHtml({
     data, enriched, headline, reachConcentration, watchGap, strongHookCount, replayWins,
     wordDiffs, doMore, stopDoing, fixThese,
     aggEngagement, aggSave, aggShare, aggReplay, aggWatch,
     hourGroups, dayStats, capBuckets, hashGroups,
+    weeklyWithTips,
   });
 
   await fs.writeFile('report.html', html);
@@ -572,6 +689,7 @@ function renderHtml(ctx: any): string {
     wordDiffs, doMore, stopDoing, fixThese,
     aggEngagement, aggSave, aggShare, aggReplay, aggWatch,
     hourGroups, dayStats, capBuckets, hashGroups,
+    weeklyWithTips,
   } = ctx;
   const bottomIds = new Set(enriched.slice(-3).map((p: any) => p.id));
   const topIds = new Set(enriched.slice(0, 3).map((p: any) => p.id));
@@ -805,6 +923,47 @@ table.words tr:hover td{background:#FAFAFA}
 .m-label{color:var(--muted);font-size:10px;font-weight:600;margin-bottom:2px}
 .m-val{font-weight:900;font-size:13px;color:var(--ink)}
 
+/* Weekly Digest */
+.weekly-card{display:grid;grid-template-columns:280px 1fr;gap:24px;padding:24px;background:linear-gradient(180deg,#fff 0%,#FAFAFA 100%);border:1px solid var(--line);border-radius:18px;margin-bottom:20px;position:relative;overflow:hidden}
+.weekly-card::before{content:"";position:absolute;top:0;left:0;bottom:0;width:4px;background:var(--ig-grad)}
+.wc-thumb-col{display:flex;flex-direction:column;gap:14px}
+.wc-thumb-link{display:block;position:relative;aspect-ratio:1/1;border-radius:14px;overflow:hidden;background:#f3f4f6}
+.wc-thumb{width:100%;height:100%;object-fit:cover;display:block}
+.wc-thumb.placeholder{display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:12px;width:100%;height:100%}
+.wc-thumb-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.15) 0%,transparent 30%,transparent 70%,rgba(0,0,0,0.25) 100%);pointer-events:none}
+.wc-thumb-badge{position:absolute;bottom:10px;right:10px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.95);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ig-pink);backdrop-filter:blur(4px)}
+.wc-quick-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding:10px;background:#FAFAFA;border-radius:10px;border:1px solid var(--line)}
+.wcq{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;padding:2px 4px}
+.wcq span{color:var(--muted);font-weight:600}
+.wcq strong{font-weight:900;font-size:13px;color:var(--ink)}
+.wc-body{display:flex;flex-direction:column;gap:14px}
+.wc-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.wc-date-row{display:flex;align-items:center;gap:10px}
+.wc-date{font-size:13px;font-weight:700;color:var(--ink)}
+.wc-days-ago{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--ig-grad);color:#fff;letter-spacing:0.02em}
+.wc-diag-reason{font-size:12px;color:var(--muted);line-height:1.6;padding:10px 14px;background:#FAFAFA;border-radius:10px;border-left:3px solid var(--ig-pink)}
+.wc-caption{font-size:13px;line-height:1.6;color:#374151;padding:10px 0;border-bottom:1px dashed var(--line);max-height:8em;overflow:hidden}
+.wc-metric-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.wc-mrow{background:#FAFAFA;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.wc-mlabel{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase}
+.wc-mval{font-size:18px;font-weight:900;color:var(--ink);line-height:1.2}
+.wc-unit{font-size:12px;color:var(--muted);font-weight:700;margin-left:2px}
+.wc-mrow .bench-pill{font-size:10px;padding:3px 6px;margin-top:2px;border-radius:6px;text-align:left}
+.wc-tips{display:flex;flex-direction:column;gap:10px;padding:16px;background:linear-gradient(135deg,#833AB408 0%,#E1306C08 50%,#FCAF4508 100%);border-radius:14px;border:1px solid #E1306C22}
+.wc-tips-title{font-size:13px;font-weight:900;color:var(--ig-pink);letter-spacing:0.02em;margin-bottom:4px}
+.wc-tip{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;background:#fff;border-radius:10px;border:1px solid var(--line)}
+.wc-tip-icon{font-size:22px;flex-shrink:0;line-height:1}
+.wc-tip-content{flex:1;min-width:0}
+.wc-tip-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;line-height:1.4}
+.wc-tip-desc{font-size:12px;color:var(--muted);line-height:1.6}
+.weekly-empty{text-align:center;padding:60px 20px;color:var(--ink)}
+@media (max-width:760px){
+  .weekly-card{grid-template-columns:1fr;padding:18px}
+  .wc-thumb-col{flex-direction:row;align-items:flex-start}
+  .wc-thumb-link{width:140px;flex-shrink:0}
+  .wc-quick-stats{flex:1}
+}
+
 /* Footer */
 footer{text-align:center;margin-top:48px;padding:24px;color:var(--muted);font-size:12px}
 footer .ig-line{display:inline-block;width:60px;height:3px;background:var(--ig-grad);border-radius:999px;margin:0 8px;vertical-align:middle}
@@ -980,6 +1139,106 @@ footer .ig-line{display:inline-block;width:60px;height:3px;background:var(--ig-g
       </div>
     </div>
     <div class="cards">${cards}</div>
+  </div>
+
+  <!-- WEEKLY DIGEST -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon">${ICON_WEEKLY}</div>
+      <div>
+        <h2>直近1週間の動画別レポート<span class="layer-tag">Weekly Digest</span></h2>
+        <div class="section-subtitle">投稿日順（新しい順）・各動画にカスタム改善提案付き</div>
+      </div>
+    </div>
+    ${(weeklyWithTips as any[]).length === 0 ? `
+      <div class="weekly-empty">
+        <div style="font-size:48px;margin-bottom:12px">📭</div>
+        <div style="font-weight:700;margin-bottom:6px">直近1週間に投稿がありません</div>
+        <div style="font-size:13px;color:var(--muted)">最新の投稿でこの欄が自動的に埋まります。</div>
+      </div>
+    ` : (weeklyWithTips as any[]).map((wt: any) => {
+      const p = wt.post as Enriched;
+      const tips = wt.tips as Array<{ icon: string; title: string; desc: string }>;
+      const cap = escapeHtml(p.caption || '(キャプションなし)');
+      const dt = p.timestamp ? new Date(p.timestamp) : new Date();
+      const date = dt.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
+      const time = dt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      const daysAgo = Math.floor((Date.now() - dt.getTime()) / (24 * 60 * 60 * 1000));
+      const daysAgoLabel = daysAgo === 0 ? '本日' : daysAgo === 1 ? '昨日' : `${daysAgo}日前`;
+      const engBadge = benchmarkBadge(p.engagement_rate, BENCHMARK.engagement_rate);
+      const saveBadge = benchmarkBadge(p.save_pct, BENCHMARK.save_pct);
+      const shareBadge = benchmarkBadge(p.share_pct, BENCHMARK.share_pct);
+      const watchBadge = benchmarkBadge(p.watch_s, BENCHMARK.watch_s);
+      const replayBadge = benchmarkBadge(p.replay_rate, BENCHMARK.replay_rate);
+      return `
+      <div class="weekly-card">
+        <div class="wc-thumb-col">
+          <a href="${escapeHtml(p.permalink || '#')}" target="_blank" rel="noopener" class="wc-thumb-link">
+            ${p.thumb_b64 ? `<img class="wc-thumb" src="${p.thumb_b64}" alt="thumbnail" loading="lazy">` : '<div class="wc-thumb placeholder">no image</div>'}
+            <div class="wc-thumb-overlay"></div>
+            <div class="wc-thumb-badge">▶</div>
+          </a>
+          <div class="wc-quick-stats">
+            <div class="wcq"><span>リーチ</span><strong>${fmt(safeNum(p.insights.reach))}</strong></div>
+            <div class="wcq"><span>再生</span><strong>${fmt(safeNum(p.insights.views))}</strong></div>
+            <div class="wcq"><span>いいね</span><strong>${fmt(safeNum(p.insights.likes))}</strong></div>
+            <div class="wcq"><span>コメント</span><strong>${fmt(safeNum(p.insights.comments))}</strong></div>
+            <div class="wcq"><span>保存</span><strong>${fmt(safeNum(p.insights.saved))}</strong></div>
+            <div class="wcq"><span>シェア</span><strong>${fmt(safeNum(p.insights.shares))}</strong></div>
+          </div>
+        </div>
+        <div class="wc-body">
+          <div class="wc-header">
+            <div class="wc-date-row">
+              <span class="wc-date">📅 ${escapeHtml(date)} ${escapeHtml(time)}</span>
+              <span class="wc-days-ago">${daysAgoLabel}</span>
+            </div>
+            <div class="tag ${p.diagnosis_class}">${escapeHtml(p.diagnosis)}</div>
+          </div>
+          <div class="wc-diag-reason">${escapeHtml(p.diagnosis_reason)}</div>
+          <div class="wc-caption">${cap}</div>
+          <div class="wc-metric-rows">
+            <div class="wc-mrow">
+              <div class="wc-mlabel">エンゲージメント率</div>
+              <div class="wc-mval">${fmtPct(p.engagement_rate)}</div>
+              <div class="bench-pill ${engBadge.cls}">${engBadge.label}</div>
+            </div>
+            <div class="wc-mrow">
+              <div class="wc-mlabel">平均視聴秒</div>
+              <div class="wc-mval">${p.watch_s.toFixed(1)}<span class="wc-unit">s</span></div>
+              <div class="bench-pill ${watchBadge.cls}">${watchBadge.label}</div>
+            </div>
+            <div class="wc-mrow">
+              <div class="wc-mlabel">保存率</div>
+              <div class="wc-mval">${fmtPct(p.save_pct)}</div>
+              <div class="bench-pill ${saveBadge.cls}">${saveBadge.label}</div>
+            </div>
+            <div class="wc-mrow">
+              <div class="wc-mlabel">シェア率</div>
+              <div class="wc-mval">${fmtPct(p.share_pct)}</div>
+              <div class="bench-pill ${shareBadge.cls}">${shareBadge.label}</div>
+            </div>
+            <div class="wc-mrow">
+              <div class="wc-mlabel">リプレイ率</div>
+              <div class="wc-mval">${p.replay_rate.toFixed(2)}<span class="wc-unit">x</span></div>
+              <div class="bench-pill ${replayBadge.cls}">${replayBadge.label}</div>
+            </div>
+          </div>
+          <div class="wc-tips">
+            <div class="wc-tips-title">💡 この動画への改善提案</div>
+            ${tips.map((t) => `
+              <div class="wc-tip">
+                <div class="wc-tip-icon">${t.icon}</div>
+                <div class="wc-tip-content">
+                  <div class="wc-tip-title">${escapeHtml(t.title)}</div>
+                  <div class="wc-tip-desc">${escapeHtml(t.desc)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
   </div>
 
   <footer>
